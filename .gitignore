@@ -1,0 +1,19 @@
+# deps & build
+node_modules/
+artifacts/
+cache/
+coverage/
+
+# secrets & local state
+.env
+certs/
+deployments/*.json
+demo/service.json
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# misc
+.DS_Store
+Thumbs.db

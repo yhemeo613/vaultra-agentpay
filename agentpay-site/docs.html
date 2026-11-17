@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>使用文档 · Vaultra AgentPay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Poppins:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+<style>
+  .docs{ display:grid; grid-template-columns:230px 1fr; gap:34px; padding:36px 0 80px; }
+  @media (max-width:860px){ .docs{ grid-template-columns:1fr; } }
+  .docs-nav{ position:sticky; top:84px; align-self:start; display:flex; flex-direction:column; gap:2px; }
+  .docs-nav a{ padding:8px 12px; border-radius:9px; color:var(--muted); text-decoration:none; font-size:13.5px; }
+  .docs-nav a:hover{ color:#fff; background:rgba(255,255,255,.05); }
+  .docs-nav a.active{ color:#fff; background:rgba(186,150,255,.14); }
+  .doc h3{ margin:34px 0 10px; font-size:20px; font-weight:500; letter-spacing:-.01em; }
+  .doc h3:first-child{ margin-top:0; }
+  .doc p{ color:var(--muted); font-size:14px; }
+  .doc ul{ color:var(--muted); font-size:14px; padding-left:20px; }
+  .doc li{ margin:5px 0; }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"><i></i><i></i></span><span class="brand-name">Vaultra</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="docs.html" class="active">文档</a>
+    <a href="demo.html">演示</a>
+    <a href="provider.html">服务商</a>
+  </div>
+  <div class="nav-cta"><a class="pill solid" href="demo.html">在线演示</a></div>
+</nav>
+
+<div class="wrap docs">
+  <aside class="docs-nav">
+    <a href="#quickstart">快速开始</a>
+    <a href="#architecture">架构</a>
+    <a href="#sdk">SDK 接入</a>
+    <a href="#contract">合约 API</a>
+    <a href="#deploy">部署指南</a>
+    <a href="#provider">服务商接入</a>
+    <a href="#security">安全模型</a>
+    <a href="#faq">FAQ</a>
+  </aside>
+
+  <article class="doc">
+
+    <h3 id="quickstart">快速开始（本地，无需真实资产）</h3>
+    <p>仓库在 <code>agentpay/</code>，Node ≥ 20（内部用 <code>node:sqlite</code>）。</p>
+<pre><code>npm install
+npm run certs                      # 生成本地 TLS/mTLS 证书
+npx hardhat test                   # 59 passing
+
+# 终端 A：本地链
+npx hardhat node
+
+# 终端 B：部署 + 注册 + 网关
+npx hardhat run scripts/deploy.js --network localhost
+npx hardhat run scripts/register-service.js --network localhost
+$env:STORE="redis"; $env:REDIS_URL="redis://127.0.0.1:6379"
+$env:REQUIRE_TLS="1"; $env:TLS_CERT="certs/server.crt"; $env:TLS_KEY="certs/server.key"
+$env:PROVIDER_PRIVATE_KEY="&lt;服务方钱包私钥&gt;"
+node demo/server.js
+
+# 终端 C：全攻击面演示 + 仲裁 + 退款
+$env:ENDPOINT="https://127.0.0.1:4021/v1/infer"
+node demo/client.js "为什么 BSC 适合做 agent 微支付"
+node demo/dispute.js
+node demo/refund.js                # 最后跑，会拨快本地链时间</code></pre>
+    <p>本地链会自动给前 3 个测试账户各发 10000 AGP，方便直接跑 demo。更多细节见仓库 README。</p>
+
+    <h3 id="architecture">架构</h3>
+    <pre><code>agent (SDK) ──HTTPS/mTLS──► 网关 demo/server.js ──► BSC (RPC)
+      │                            │                      │
+      │  402 + challenge           │  签发一次性 challenge │
+      │◄───────────────────────────┘                      │
+      │   pay(serviceId, calls, challengeId) ────────────► │  资金进 escrow
+      │   EIP-712 签名                                     │
+      │  POST + X-PAYMENT-TX/-CHALLENGE/-SIGNATURE ──────► │
+      │                            │  校验五层防线          │
+      │◄── 200 + 结果 ─────────────┘  claim() 结算 ◄───────┤
+      │
+      store: memory / sqlite / redis   （challenge 状态，多实例共享）</code></pre>
+
+    <h3 id="sdk">SDK 接入（在你的 agent 里）</h3>
+    <p>一行搞定 402 → 付款 → 签名 → 重试，不需要 agent 处理协议细节：</p>
+<pre><code>const { AgentPayClient } = require("agentpay/sdk/agentpay-client");
+
+const client = new AgentPayClient({
+  rpcUrl: "https://bsc-dataseed.bnbchain.org",
+  privateKey: process.env.AGENT_KEY,          // agent 自己的钱包
+  token: "0x…",                               // AGP
+  agentPay: "0x…",                            // AgentPay 合约
+  tls: { ca, cert, key },                     // mTLS 客户端证书（可选）
+});
+
+const res = await client.fetchPaid("https://api.vaultra/v1/infer", "你的 prompt");
+console.log(res.body.output);
+console.log(res.payment.txHash);              // 链上收据
+console.log(res.body.billing.settlement);     // claimed / pending / manual</code></pre>
+    <p>SDK 内部处理：402 解析、challenge 重算、EIP-712 签名、allowance 授权、NonceManager 防撞 nonce、重试。</p>
+
+    <h3 id="contract">合约 API</h3>
+    <table class="tbl" style="margin-top:10px">
+      <thead><tr><th>函数</th><th>谁可调</th><th>作用</th></tr></thead>
+      <tbody>
+        <tr><td><code>setService(id, price, endpoint)</code></td><td>服务方</td><td>注册/更新服务定价与接口</td></tr>
+        <tr><td><code>closeService(id)</code></td><td>该服务方</td><td>下线服务，停止新付款</td></tr>
+        <tr><td><code>pay(id, calls, memo)</code></td><td>任何人</td><td>按次预付，资金进 escrow，memo 即托管 key</td></tr>
+        <tr><td><code>claim(memo)</code></td><td>该服务 provider</td><td>交付后结算：net 给服务方，fee 进财库</td></tr>
+        <tr><td><code>refund(memo)</code></td><td>原付款人</td><td>超时未结算，原额退回</td></tr>
+        <tr><td><code>dispute(memo)</code></td><td>原付款人</td><td>结算前发起争议，托管冻结</td></tr>
+        <tr><td><code>resolve(memo, toProvider)</code></td><td>仲裁人</td><td>裁决：判服务方按 claim 分配，判付款方原额退回</td></tr>
+        <tr><td><code>setFee / setRefundDelay / setTreasury / setArbiter</code></td><td>owner</td><td>费率（≤5%）、退款窗口（1h–30d）、财库、仲裁人</td></tr>
+      </tbody>
+    </table>
+    <p>状态机：<code>OPEN → CLAIMED / REFUNDED / DISPUTED → RESOLVED</code>。事件：<code>Paid / Claimed / Refunded / Disputed / Resolved</code>，全部带 memo 与金额，可离线审计。</p>
+
+    <h3 id="deploy">部署指南</h3>
+    <ol style="color:var(--muted);font-size:14px">
+      <li>领测试币：<a href="https://www.bnbchain.org/en/testnet-faucet" target="_blank" rel="noopener">BNB Chain Faucet</a>（0.3 tBNB/天，主网地址需 ≥0.002 BNB 防机器人）</li>
+      <li><code>cp .env.example .env</code>，填 <code>PRIVATE_KEY</code>（专用测试钱包）</li>
+      <li><code>npm run deploy:testnet</code> 与 <code>npm run register:testnet</code></li>
+      <li>BscScan 验证源码（部署脚本会打印 verify 命令）</li>
+      <li>主网同样流程，<code>deploy:mainnet</code>；部署 gas 约 150 万单位，通常 $0.05–$0.30</li>
+    </ol>
+    <div class="alert warn">上线前必做：BscScan 验证源码；建 PancakeSwap V2 池并锁 LP；<code>setRefundDelay()</code> 调业务窗口；财库与仲裁人换成多签；第三方审计。</div>
+
+    <h3 id="provider">服务商接入</h3>
+    <p>你只需要三样东西：一个部署了 <code>AgentPay</code> 的合约地址、一个自己的钱包（provider）、一个后端推理接口。</p>
+    <ol style="color:var(--muted);font-size:14px">
+      <li>跑网关：<code>node demo/server.js</code>，配 <code>PROVIDER_PRIVATE_KEY</code> 后交付自动 <code>claim()</code></li>
+      <li>去 <a href="provider.html">服务商后台</a>（需要后台服务已启动）查看服务、托管、账单与争议</li>
+      <li>收款直接到你的钱包，0.5% 平台费在链上事件里可查</li>
+    </ol>
+
+    <h3 id="security">安全模型</h3>
+    <p>五层防线全部实测：challenge 一次性 + 过期（默认 120s）、请求指纹绑定、EIP-712 签名者 == 链上付款人、客户端身份绑定（mTLS / IP+UA）、escrow 托管 + 仲裁。传输层强制 HTTPS，可选 mTLS 客户端证书。</p>
+    <div class="alert info">已知边界：仲裁是单点信任（一个仲裁地址），生产建议多签仲裁团；DISPUTED 无链上时限，业务层要约定仲裁期限；服务方自动 claim 的私钥在生产环境应放 KMS。</div>
+
+    <h3 id="faq">FAQ</h3>
+    <ul>
+      <li><b>为什么选 BSC 而不是以太坊？</b> gas 便宜 50–100 倍，单笔调用几分钱才划得来，这是微支付的物理前提。</li>
+      <li><b>一次付款能用几次？</b> 一次。challenge 单次核销，换 prompt / 换客户端 / 重放全部拒绝。</li>
+      <li><b>付款了但服务没交付？</b> 超时 <code>refund()</code> 原路退回；有争议走 <code>dispute()</code> → 仲裁。</li>
+      <li><b>服务方要交押金吗？</b> 不需要。钱只在托管期由合约保管，结算后归零。</li>
+      <li><b>平台费多少？</b> 0.5%（可配，硬上限 5%），链上事件可查，owner 改费率也受上限约束。</li>
+      <li><b>能接自己的模型吗？</b> 能。网关 <code>LLM_BASE_URL</code> 指向任意 OpenAI 兼容接口即可，计费逻辑不变。</li>
+      <li><b>合约安全吗？</b> 59 个测试覆盖，但未经第三方审计，主网前务必审计。</li>
+    </ul>
+
+  </article>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <div>Vaultra · AgentPay — 使用文档</div>
+    <div><a href="index.html">Home</a> · <a href="demo.html">演示</a> · <a href="provider.html">服务商</a></div>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>

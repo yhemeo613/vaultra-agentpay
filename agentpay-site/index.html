@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vaultra · AgentPay — 让 AI Agent 自己付钱的链上微支付</title>
+<meta name="description" content="AgentPay：跑在 BNB Smart Chain 的 AI Agent 按次计费基础设施。402 结算、托管 escrow、链上仲裁，0.5% 平台费。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Poppins:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<!-- ============================== HERO ============================== -->
+<div class="hero">
+  <div class="globe-wrap" aria-hidden="true">
+    <div class="globe-plate">
+      <img class="globe-still" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/f1631235-0a76-464d-8f1d-2c4b48a997d5.jpg" alt="" decoding="async" fetchpriority="high" />
+      <video class="globe-video" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/e71aea27-a808-4ae3-8231-a469d49285d4.mp4" muted loop playsinline preload="none" tabindex="-1" aria-hidden="true"></video>
+    </div>
+  </div>
+
+  <header class="hero-nav">
+    <a class="brand" href="index.html" aria-label="Vaultra home">
+      <span class="mark" aria-hidden="true"><i></i><i></i></span>
+      <span class="brand-name">Vaultra</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="docs.html">文档</a>
+      <a href="demo.html">演示</a>
+      <a href="provider.html">服务商</a>
+    </nav>
+    <div class="actions">
+      <a class="pill ghost" href="docs.html">快速开始</a>
+      <a class="pill solid" href="demo.html">在线演示</a>
+    </div>
+  </header>
+
+  <main class="hero-content">
+    <div class="badge" data-anim style="--d:.12s"><i data-lucide="zap" aria-hidden="true"></i><span>AgentPay · 链上按次计费</span></div>
+    <h1>
+      <span data-anim style="--d:.2s">让 AI Agent 自己付钱</span>
+      <span data-anim style="--d:.28s">Per-call Payments, On-chain</span>
+    </h1>
+    <p class="lede" data-anim style="--d:.42s">
+      AgentPay 是跑在 BNB Smart Chain 上的 AI Agent 微支付基础设施：
+      每个 agent 调用付一次钱，链上托管结算，付了没交付可以退款，扯皮可以仲裁。
+    </p>
+    <div class="cta-row" data-anim style="--d:.54s">
+      <a class="cta" href="demo.html">在线演示 <span class="arrow" aria-hidden="true">&#8594;</span></a>
+      <a class="cta dark" href="docs.html">阅读文档</a>
+    </div>
+  </main>
+</div>
+
+<!-- ============================== 产品介绍 ============================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">What is AgentPay</div>
+      <h2 class="section-title">为高频微支付而生的结算层</h2>
+      <p class="section-sub">以太坊做不到的，BSC 可以：gas 低到单笔调用几分钱也划得来。AgentPay 把"按次付费"变成可验证的链上事实。</p>
+    </div>
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="icon"><i data-lucide="lock" aria-hidden="true"></i></div>
+        <h3>托管结算 Escrow</h3>
+        <p>付款进合约托管，服务方交付成功才 <code>claim()</code> 结算；超时未交付，付款方可 <code>refund()</code> 原路退回。</p>
+      </div>
+      <div class="card">
+        <div class="icon"><i data-lucide="scale" aria-hidden="true"></i></div>
+        <h3>链上仲裁 Arbitration</h3>
+        <p>交付有争议？付款方 <code>dispute()</code> 冻结托管，独立仲裁人 <code>resolve()</code> 裁决归谁，资金不会烂在合约里。</p>
+      </div>
+      <div class="card">
+        <div class="icon"><i data-lucide="coins" aria-hidden="true"></i></div>
+        <h3>零沉淀 Zero Balance</h3>
+        <p>结算/退款/裁决后合约余额恒为 0，没有可被攻击的资金池；0.5% 平台费在 <code>Paid</code> 事件里永远可查。</p>
+      </div>
+      <div class="card">
+        <div class="icon"><i data-lucide="key-round" aria-hidden="true"></i></div>
+        <h3>请求与付款绑定</h3>
+        <p>challenge + EIP-712 签名：一笔付款只服务一次请求，换 prompt、换客户端、换私钥全部失效。</p>
+      </div>
+      <div class="card">
+        <div class="icon"><i data-lucide="server" aria-hidden="true"></i></div>
+        <h3>真实推理接口</h3>
+        <p>网关接 OpenAI 兼容接口（<code>LLM_BASE_URL</code>），计费逻辑与模型无关；没配模型自动回退 mock。</p>
+      </div>
+      <div class="card">
+        <div class="icon"><i data-lucide="rocket" aria-hidden="true"></i></div>
+        <h3>可扩展部署</h3>
+        <p>challenge 状态可落 sqlite / redis，多实例共享；HTTPS + mTLS 强制传输安全。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 工作原理 ============================== -->
+<section style="background:linear-gradient(180deg,transparent,rgba(186,150,255,.04) 30%,rgba(255,176,214,.04) 70%,transparent)">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">How it works</div>
+      <h2 class="section-title">一次付费调用的完整旅程</h2>
+      <p class="section-sub">agent 遇到 402 自动完成付款，人类无需介入。</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <h4>1. 请求</h4>
+        <p>agent 调用 <code>POST /v1/infer</code>，网关返回 402 + 一次性 challenge（含请求指纹与过期时间）。</p>
+      </div>
+      <div class="step">
+        <h4>2. 付款</h4>
+        <p>agent 调用合约 <code>pay(serviceId, calls, challengeId)</code>，资金进托管，challengeId 写入链上 memo。</p>
+      </div>
+      <div class="step">
+        <h4>3. 签名</h4>
+        <p>agent 用 EIP-712 对同一个 challengeId 签名，声明"这笔付款是我付的"。</p>
+      </div>
+      <div class="step">
+        <h4>4. 核验</h4>
+        <p>网关校验：challenge 未用未过期、客户端身份一致、请求指纹一致、签名者等于链上付款人。</p>
+      </div>
+      <div class="step">
+        <h4>5. 交付+结算</h4>
+        <p>返回结果，服务方 <code>claim()</code> 结算（99.5% 归服务方，0.5% 进财库）。合约余额归零。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 安全防线 ============================== -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Security</div>
+      <h2 class="section-title">每条攻击路径都有对应防线</h2>
+    </div>
+    <div class="card" style="padding:10px 8px">
+      <table class="tbl">
+        <thead><tr><th>攻击</th><th>防线</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>不付款直接调</td><td><code>402</code> 拦截，必须带支付凭证</td><td><span class="tag ok">实测</span></td></tr>
+          <tr><td>一笔 tx 服务多个请求</td><td><code>memo == challengeId</code> + challenge 一次性</td><td><span class="tag ok">实测</span></td></tr>
+          <tr><td>换 prompt 复用付款</td><td>challenge 绑定 <code>reqHash(method+path+body)</code></td><td><span class="tag ok">实测</span></td></tr>
+          <tr><td>截获 txHash 冒充付款人</td><td>EIP-712 验签 == 链上 <code>Paid.payer</code></td><td><span class="tag ok">实测</span></td></tr>
+          <tr><td>截获报文跨客户端重放</td><td>challenge 绑定客户端身份（mTLS 指纹 / IP+UA），不符即拒且不消耗</td><td><span class="tag ok">实测</span></td></tr>
+          <tr><td>付了钱不交付</td><td>escrow 托管，超时 <code>refund()</code></td><td><span class="tag ok">实测</span></td></tr>
+          <tr><td>交付争议</td><td><code>dispute()</code> 冻结 → 仲裁人 <code>resolve()</code></td><td><span class="tag ok">实测</span></td></tr>
+          <tr><td>多实例重复结算</td><td><code>store.setNx</code> 分布式锁，claim 幂等</td><td><span class="tag ok">测试</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CTA ============================== -->
+<section style="padding-bottom:80px">
+  <div class="wrap">
+    <div class="card" style="text-align:center;padding:48px 30px">
+      <h2 class="section-title" style="margin-top:0">从本地跑通到主网部署，只要几条命令</h2>
+      <p class="section-sub" style="margin-left:auto;margin-right:auto">59 个自动化测试覆盖合约、协议、存储与推理层。README 里有完整的快速开始与部署指南。</p>
+      <div class="cta-row" style="margin-top:26px;justify-content:center">
+        <a class="cta" href="docs.html">使用文档 <span class="arrow" aria-hidden="true">&#8594;</span></a>
+        <a class="cta dark" href="provider.html">服务商后台</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <div>Vaultra · AgentPay — demo/prototype，合约未经第三方审计。</div>
+    <div>
+      <a href="index.html">Home</a> · <a href="docs.html">文档</a> · <a href="demo.html">演示</a> · <a href="provider.html">服务商</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/lucide.min.js"></script>
+<script>
+  if (window.lucide) lucide.createIcons();
+</script>
+<script src="assets/main.js"></script>
+</body>
+</html>

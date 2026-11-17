@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在线演示 · Vaultra AgentPay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Poppins:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+<script src="assets/ethers.umd.min.js"></script>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"><i></i><i></i></span><span class="brand-name">Vaultra</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="docs.html">文档</a>
+    <a href="demo.html" class="active">演示</a>
+    <a href="provider.html">服务商</a>
+  </div>
+  <div class="nav-cta"><a class="pill solid" href="docs.html">快速开始</a></div>
+</nav>
+
+<div class="wrap" style="padding-top:44px;padding-bottom:80px">
+  <div class="section-head" style="margin-bottom:30px">
+    <div class="eyebrow">Live Demo</div>
+    <h2 class="section-title">在线演示：402 按次计费全流程</h2>
+    <p class="section-sub">在浏览器里跑通 402 → 链上付款（escrow）→ 验签 → 交付 → 结算，以及四种攻击的拦截。需要本地网关与链在跑（见下方提示）。</p>
+  </div>
+
+  <div class="alert info" id="env-note" style="margin-bottom:20px">
+    <b>环境要求：</b>先按 <a href="docs.html#quickstart">快速开始</a> 把本地链 + 网关跑起来。
+    浏览器演示请用 <b>http</b> 端点（网关 <code>REQUIRE_TLS=0</code>），自签名证书无法被浏览器信任。
+    <span id="svc-status">状态检测中…</span>
+  </div>
+
+  <div class="demo-controls">
+    <input class="field" id="endpoint" value="http://127.0.0.1:4021/v1/infer" style="width:340px" />
+    <input class="field" id="prompt" value="为什么 BSC 适合做 agent 微支付" style="width:280px" />
+    <button class="btn primary" id="run" type="button">单次付费流程</button>
+    <button class="btn" id="attack" type="button">攻击面演示</button>
+    <button class="btn" id="clear" type="button">清空日志</button>
+  </div>
+  <div class="demo-controls">
+    <span style="font-size:12px;color:var(--muted-dim)">RPC</span>
+    <input class="field" id="rpc" value="http://127.0.0.1:8545" style="width:200px" />
+    <span style="font-size:12px;color:var(--muted-dim)">AGP</span>
+    <input class="field" id="token" style="width:330px" />
+    <span style="font-size:12px;color:var(--muted-dim)">AgentPay</span>
+    <input class="field" id="agentpay" style="width:330px" />
+  </div>
+
+  <div class="demo-stage">
+    <div class="demo-log" id="log"><div class="ln dim">（等待操作）</div></div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <div>Vaultra · AgentPay — 在线演示</div>
+    <div><a href="index.html">Home</a> · <a href="docs.html">文档</a> · <a href="provider.html">服务商</a></div>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const logBox = $("log");
+
+// demo 钱包：hardhat 账户 #1（本地链专用，测试网请换成自己的测试钱包）
+const DEMO_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+
+function log(line, cls) {
+  const div = document.createElement("div");
+  div.className = "ln";
+  const span = document.createElement("span");
+  if (cls) span.className = cls;
+  span.textContent = line;
+  div.appendChild(span);
+  logBox.appendChild(div);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+function ok(m) { log(m, "ok"); }
+function bad(m) { log(m, "bad"); }
+function dim(m) { log(m, "dim"); }
+
+function computeChallengeId({ nonce, serviceId, calls, expiresAt, reqHash }) {
+  return ethers.keccak256(ethers.solidityPacked(
+    ["bytes32", "bytes32", "uint256", "uint256", "bytes32"],
+    [nonce, serviceId, BigInt(calls), BigInt(expiresAt), reqHash],
+  ));
+}
+
+async function loadService() {
+  try {
+    const res = await fetch("../agentpay/demo/service.json");
+    if (res.ok) {
+      const cfg = await res.json();
+      $("token").value = cfg.token || "";
+      $("agentpay").value = cfg.agentPay || "";
+      return cfg;
+    }
+  } catch (e) { /* 静态站点时没有 service.json，走默认 */ }
+  $("token").value = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+  $("agentpay").value = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+  return null;
+}
+
+async function checkStatus() {
+  const url = new URL($("endpoint").value);
+  url.pathname = "/health";
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    const body = await res.json();
+    $("svc-status").textContent =
+      "网关在线：store=" + body.store + " · tls=" + body.tls + " · settlement=" + body.settlement + " · inference=" + body.inference;
+  } catch (e) {
+    $("svc-status").textContent = "网关不在线（先跑 node demo/server.js）";
+  }
+}
+
+async function firstRequest(prompt) {
+  const url = new URL($("endpoint").value);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ prompt }),
+    cache: "no-store",
+  });
+  const body = await res.json();
+  return { status: res.status, body };
+}
+
+async function payAndSign(challenge) {
+  const provider = new ethers.JsonRpcProvider($("rpc").value);
+  const wallet = new ethers.Wallet(DEMO_KEY, provider);
+
+  const challengeId = computeChallengeId(challenge);
+  if (challenge.id && challenge.id.toLowerCase() !== challengeId.toLowerCase()) {
+    throw new Error("challengeId 与服务端不一致");
+  }
+
+  const tokenAddr = $("token").value.trim();
+  const agentPayAddr = $("agentpay").value.trim();
+  if (!tokenAddr || !agentPayAddr) throw new Error("请先填 AGP / AgentPay 合约地址");
+
+  const token = new ethers.Contract(tokenAddr, [
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function balanceOf(address owner) view returns (uint256)",
+  ], wallet);
+  const agentPay = new ethers.Contract(agentPayAddr, [
+    "function pay(bytes32 id, uint256 calls, bytes32 memo)",
+  ], wallet);
+
+  const price = BigInt(challenge.price) * BigInt(challenge.calls);
+
+  let nonce = await wallet.getNonce();
+  const approved = await token.approve(agentPayAddr, ethers.MaxUint256, { nonce: nonce++ });
+  await approved.wait();
+  dim("approve tx: " + approved.hash);
+
+  const payTx = await agentPay.pay(challenge.serviceId, challenge.calls, challengeId, { nonce: nonce++ });
+  await payTx.wait();
+  dim("pay tx: " + payTx.hash + "（资金进 escrow）");
+
+  const chainId = Number((await provider.getNetwork()).chainId);
+  const signature = await wallet.signTypedData(
+    { name: "AgentPay", version: "1", chainId, verifyingContract: agentPayAddr },
+    { Payment: [
+      { name: "challengeId", type: "bytes32" },
+      { name: "serviceId", type: "bytes32" },
+      { name: "calls", type: "uint256" },
+      { name: "expiresAt", type: "uint256" },
+      { name: "reqHash", type: "bytes32" },
+    ]},
+    { challengeId, serviceId: challenge.serviceId, calls: BigInt(challenge.calls),
+      expiresAt: BigInt(challenge.expiresAt), reqHash: challenge.reqHash },
+  );
+
+  return { challengeId, txHash: payTx.hash, signature, price };
+}
+
+async function consume(prompt, payment, headers) {
+  const url = new URL($("endpoint").value);
+  url.searchParams.set("prompt", prompt);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: Object.assign({ "content-type": "application/json" }, headers || {}),
+    body: JSON.stringify({ prompt }),
+    cache: "no-store",
+  });
+  const body = await res.json();
+  return { status: res.status, body };
+}
+
+async function runFlow() {
+  log("── 单次付费流程 ──", "dim");
+  const prompt = $("prompt").value || "demo";
+  const first = await firstRequest(prompt);
+  if (first.status !== 402) { bad("预期 402，实际 " + first.status + " " + JSON.stringify(first.body)); return; }
+  log("[1] 未付款请求 -> HTTP " + first.status + "（challenge 已签发）");
+  dim("    challenge: " + first.body.challenge.id);
+
+  const payment = await payAndSign(first.body.challenge);
+  log("[2] 链上付款完成，challengeId 写入 memo，EIP-712 签名生成");
+
+  const done = await consume(prompt, payment, {
+    "x-payment-tx": payment.txHash,
+    "x-payment-challenge": payment.challengeId,
+    "x-payment-signature": payment.signature,
+  });
+  if (done.status === 200) {
+    ok("[3] 交付成功 HTTP 200 · settlement=" + done.body.billing.settlement);
+    dim("    output: " + done.body.output);
+  } else {
+    bad("[3] HTTP " + done.status + " " + done.body.reason);
+  }
+}
+
+async function runAttacks() {
+  log("── 攻击面演示 ──", "dim");
+  const prompt = $("prompt").value || "demo";
+  const first = await firstRequest(prompt);
+  if (first.status !== 402) { bad("先让网关正常签发 challenge（HTTP " + first.status + "）"); return; }
+  const payment = await payAndSign(first.body.challenge);
+  log("[2] 已付款并签名（正常路径所需的全部凭证）");
+
+  // 攻击 1：换一把私钥签名
+  const attacker = ethers.Wallet.createRandom();
+  const chainId = Number((await new ethers.JsonRpcProvider($("rpc").value).getNetwork()).chainId);
+  const forged = await attacker.signTypedData(
+    { name: "AgentPay", version: "1", chainId, verifyingContract: $("agentpay").value.trim() },
+    { Payment: [
+      { name: "challengeId", type: "bytes32" }, { name: "serviceId", type: "bytes32" },
+      { name: "calls", type: "uint256" }, { name: "expiresAt", type: "uint256" },
+      { name: "reqHash", type: "bytes32" },
+    ]},
+    { challengeId: payment.challengeId, serviceId: first.body.challenge.serviceId,
+      calls: BigInt(first.body.challenge.calls), expiresAt: BigInt(first.body.challenge.expiresAt),
+      reqHash: first.body.challenge.reqHash },
+  );
+  const a1 = await consume(prompt, payment, {
+    "x-payment-tx": payment.txHash, "x-payment-challenge": payment.challengeId,
+    "x-payment-signature": forged,
+  });
+  log("[3] 换一把私钥签名 -> HTTP " + a1.status + "（签名者与付款人不一致）");
+
+  // 攻击 2：换 prompt 复用同一笔付款
+  const a2 = await consume("换一个 prompt 试试白嫖", payment, {
+    "x-payment-tx": payment.txHash, "x-payment-challenge": payment.challengeId,
+    "x-payment-signature": payment.signature,
+  });
+  log("[4] 换 prompt -> HTTP " + a2.status + "（绑定的是另一个请求）");
+
+  // 正常消费
+  const good = await consume(prompt, payment, {
+    "x-payment-tx": payment.txHash, "x-payment-challenge": payment.challengeId,
+    "x-payment-signature": payment.signature,
+  });
+  if (good.status === 200) ok("[5] 正确请求 -> HTTP 200 · settlement=" + good.body.billing.settlement);
+  else bad("[5] HTTP " + good.status + " " + good.body.reason);
+
+  // 攻击 3：原样重放
+  const a3 = await consume(prompt, payment, {
+    "x-payment-tx": payment.txHash, "x-payment-challenge": payment.challengeId,
+    "x-payment-signature": payment.signature,
+  });
+  log("[6] 原样重放 -> HTTP " + a3.status + "（challenge 已核销）");
+}
+
+$("run").addEventListener("click", function () {
+  this.disabled = true;
+  runFlow().catch(function (e) { bad("错误: " + e.message); }).finally(function () { $("run").disabled = false; });
+});
+$("attack").addEventListener("click", function () {
+  this.disabled = true;
+  runAttacks().catch(function (e) { bad("错误: " + e.message); }).finally(function () { $("attack").disabled = false; });
+});
+$("clear").addEventListener("click", function () { logBox.innerHTML = ""; });
+
+loadService();
+checkStatus();
+</script>
+</body>
+</html>

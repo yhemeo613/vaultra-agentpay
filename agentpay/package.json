@@ -1,0 +1,33 @@
+{
+  "name": "agentpay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentPay (AGP) - per-call billing token for AI agents on BNB Smart Chain",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network bscTestnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network bsc",
+    "register:local": "hardhat run scripts/register-service.js --network localhost",
+    "register:testnet": "hardhat run scripts/register-service.js --network bscTestnet",
+    "certs": "node scripts/make-certs.js",
+    "demo:server": "node demo/server.js",
+    "demo:client": "node demo/client.js",
+    "demo:agent": "node demo/agent.js",
+    "demo:refund": "node demo/refund.js",
+    "demo:dispute": "node demo/dispute.js",
+    "site": "node agentpay-site/serve.js",
+    "site:admin": "node agentpay-site/provider-admin/server.js"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.7",
+    "hardhat": "^2.22.17"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.1.0",
+    "selfsigned": "^5.5.0"
+  }
+}

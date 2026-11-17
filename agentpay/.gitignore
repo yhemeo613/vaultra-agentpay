@@ -1,0 +1,12 @@
+node_modules/
+artifacts/
+cache/
+coverage/
+.env
+deployments/*.json
+demo/service.json
+certs/
+*.db
+*.db-wal
+*.db-shm
+*.log

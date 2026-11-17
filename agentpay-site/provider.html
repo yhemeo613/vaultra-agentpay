@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>服务商后台 · Vaultra AgentPay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Poppins:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+
+<nav class="site-nav">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"><i></i><i></i></span><span class="brand-name">Vaultra</span></a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="docs.html">文档</a>
+    <a href="demo.html">演示</a>
+    <a href="provider.html" class="active">服务商</a>
+  </div>
+  <div class="nav-cta"><a class="pill solid" href="demo.html">在线演示</a></div>
+</nav>
+
+<div class="wrap">
+  <div class="section-head" style="margin-bottom:20px">
+    <div class="eyebrow">Provider Dashboard</div>
+    <h2 class="section-title">服务商后台</h2>
+    <p class="section-sub">管理你的服务定价、查看托管台账、一键结算、看收入与平台费、调整合约参数。
+      数据来自链上事件，不经过任何中间人。</p>
+  </div>
+
+  <div class="alert info" style="margin-bottom:20px">
+    需要先启动后台服务：
+    <code>node agentpay-site/provider-admin/server.js</code>（默认 <code>http://127.0.0.1:4022</code>）。
+    配置了 <code>ADMIN_TOKEN</code> 时请在下栏填入。API 地址可在下方修改。
+  </div>
+
+  <div class="demo-controls" style="margin-bottom:22px">
+    <span style="font-size:12px;color:var(--muted-dim)">API</span>
+    <input class="field" id="api" value="http://127.0.0.1:4022" style="width:220px" />
+    <span style="font-size:12px;color:var(--muted-dim)">Token</span>
+    <input class="field" id="token" placeholder="ADMIN_TOKEN（可选）" style="width:180px" />
+    <button class="btn primary" id="refresh" type="button">刷新</button>
+  </div>
+
+  <div class="dash">
+    <aside class="dash-nav">
+      <a href="#overview" data-panel="overview" class="active">概览</a>
+      <a href="#services" data-panel="services">服务管理</a>
+      <a href="#escrows" data-panel="escrows">托管台账</a>
+      <a href="#settings" data-panel="settings">合约参数</a>
+    </aside>
+
+    <div class="dash-panel">
+      <!-- 概览 -->
+      <div id="panel-overview">
+        <div class="stat-row" id="stat-row">
+          <div class="stat"><div class="num" id="st-paid">–</div><div class="lbl">累计收款（AGP）</div></div>
+          <div class="stat"><div class="num" id="st-claim">–</div><div class="lbl">已结算（AGP）</div></div>
+          <div class="stat"><div class="num" id="st-fee">–</div><div class="lbl">平台费（AGP）</div></div>
+          <div class="stat"><div class="num" id="st-refund">–</div><div class="lbl">退款（AGP）</div></div>
+          <div class="stat"><div class="num" id="st-open">–</div><div class="lbl">待结算笔数</div></div>
+        </div>
+        <div id="status-box" class="alert info" style="margin-top:6px">状态加载中…</div>
+      </div>
+
+      <!-- 服务管理 -->
+      <div id="panel-services" style="display:none">
+        <h3 style="margin-top:0">我的服务</h3>
+        <div id="service-list"></div>
+        <h3>注册 / 更新服务</h3>
+        <div class="demo-controls">
+          <input class="field" id="svc-id" value="infer-v1" style="width:150px" />
+          <input class="field" id="svc-price" value="1" style="width:90px" placeholder="单价 AGP" />
+          <input class="field" id="svc-endpoint" value="http://127.0.0.1:4021/v1/infer" style="width:300px" />
+          <button class="btn primary" id="svc-save" type="button">注册/更新</button>
+          <button class="btn" id="svc-close" type="button">下线</button>
+        </div>
+        <div id="svc-result" style="margin-top:10px"></div>
+      </div>
+
+      <!-- 托管台账 -->
+      <div id="panel-escrows" style="display:none">
+        <h3 style="margin-top:0">托管台账（链上事件重建）</h3>
+        <div id="escrow-list"></div>
+      </div>
+
+      <!-- 合约参数 -->
+      <div id="panel-settings" style="display:none">
+        <h3 style="margin-top:0">合约参数（owner 权限）</h3>
+        <div class="demo-controls" style="margin-bottom:6px">
+          <span style="font-size:12px;color:var(--muted-dim)">费率 bps</span>
+          <input class="field" id="set-fee" style="width:100px" />
+          <button class="btn" id="set-fee-btn" type="button">设置费率（≤500）</button>
+        </div>
+        <div class="demo-controls" style="margin-bottom:6px">
+          <span style="font-size:12px;color:var(--muted-dim)">退款窗口(秒)</span>
+          <input class="field" id="set-delay" style="width:120px" />
+          <button class="btn" id="set-delay-btn" type="button">设置退款窗口（1h–30d）</button>
+        </div>
+        <div class="demo-controls" style="margin-bottom:6px">
+          <span style="font-size:12px;color:var(--muted-dim)">财库地址</span>
+          <input class="field" id="set-treasury" style="width:300px" />
+          <button class="btn" id="set-treasury-btn" type="button">设置财库</button>
+        </div>
+        <div class="demo-controls">
+          <span style="font-size:12px;color:var(--muted-dim)">仲裁人地址</span>
+          <input class="field" id="set-arbiter" style="width:300px" />
+          <button class="btn" id="set-arbiter-btn" type="button">设置仲裁人</button>
+        </div>
+        <div id="set-result" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <div>Vaultra · AgentPay — 服务商后台（数据来自链上事件）</div>
+    <div><a href="index.html">Home</a> · <a href="docs.html">文档</a> · <a href="demo.html">演示</a></div>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const FMT = (v, d = 2) => Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: d });
+
+let state = { status: null, escrows: [], stats: null, services: [] };
+
+function headers() {
+  const t = $("token").value.trim();
+  return t ? { authorization: "Bearer " + t, "content-type": "application/json" } : { "content-type": "application/json" };
+}
+
+async function api(path, opts) {
+  const res = await fetch($("api").value.replace(/\/+$/, "") + path, Object.assign({ headers: headers() }, opts || {}));
+  const body = await res.json();
+  if (!res.ok) throw new Error((body.error || "HTTP " + res.status) + (body.message ? " " + body.message : ""));
+  return body;
+}
+
+function switchPanel(name) {
+  document.querySelectorAll(".dash-panel > div").forEach((d) => (d.style.display = "none"));
+  $("panel-" + name).style.display = "block";
+  document.querySelectorAll(".dash-nav a").forEach((a) => a.classList.toggle("active", a.dataset.panel === name));
+}
+
+function renderStatus() {
+  const s = state.status;
+  if (!s) return;
+  $("status-box").innerHTML =
+    "网络 <b>" + s.chainId + "</b> · 区块 <b>" + s.block + "</b> · 服务方 <code>" + (s.provider || "未配置") + "</code>" +
+    " · 财库 <code>" + s.treasury + "</code> · 仲裁人 <code>" + s.arbiter + "</code>" +
+    " · 费率 <b>" + s.feeBps + " bps</b> · 退款窗口 <b>" + s.refundDelay + "s</b>" +
+    (s.readonly ? ' · <span class="tag warn">只读（未配私钥）</span>' : "");
+  $("set-fee").value = s.feeBps;
+  $("set-delay").value = s.refundDelay;
+  $("set-treasury").value = s.treasury;
+  $("set-arbiter").value = s.arbiter;
+}
+
+function renderStats() {
+  const st = state.stats;
+  if (!st) return;
+  $("st-paid").textContent = FMT(ethersFmt(st.paid));
+  $("st-claim").textContent = FMT(ethersFmt(st.claimedNet));
+  $("st-fee").textContent = FMT(ethersFmt(st.fees));
+  $("st-refund").textContent = FMT(ethersFmt(st.refunded));
+  const open = (state.escrows || []).filter((e) => e.state === "OPEN" || e.state === "DISPUTED").length;
+  $("st-open").textContent = open;
+}
+
+function ethersFmt(wei) {
+  // 本地页面不引 ethers 大库，手写 18 位小数除法
+  const n = BigInt(wei);
+  const whole = n / 1000000000000000000n;
+  const frac = (n % 1000000000000000000n).toString().padStart(18, "0").slice(0, 4);
+  return whole + "." + frac;
+}
+
+function renderServices() {
+  const box = $("service-list");
+  if (!state.services || !state.services.length) {
+    box.innerHTML = '<div class="alert info">还没有配置服务（SERVICE_IDS 为空或读不到）</div>';
+    return;
+  }
+  box.innerHTML = state.services.map((s) =>
+    '<div class="list-row">' +
+    '<span><b>' + s.name + '</b> <span class="mono">' + s.endpoint + '</span></span>' +
+    '<span>单价 <b>' + ethersFmt(s.price) + ' AGP</b> · ' +
+    (s.active ? '<span class="tag ok">在线</span>' : '<span class="tag bad">已下线</span>') + '</span>' +
+    '<span class="mono">provider: ' + s.provider + '</span>' +
+    "</div>").join("");
+}
+
+function renderEscrows() {
+  const box = $("escrow-list");
+  const list = state.escrows || [];
+  if (!list.length) {
+    box.innerHTML = '<div class="alert info">还没有任何托管记录</div>';
+    return;
+  }
+  box.innerHTML = list.map((e) => {
+    const stateTag =
+      e.state === "CLAIMED" ? '<span class="tag ok">已结算</span>' :
+      e.state === "REFUNDED" ? '<span class="tag ok">已退款</span>' :
+      e.state === "RESOLVED" ? '<span class="tag ok">已裁决' + (e.resolvedToProvider ? "(服务方)" : "(付款方)") + '</span>' :
+      e.state === "DISPUTED" ? '<span class="tag warn">争议中</span>' :
+      '<span class="tag warn">待结算</span>';
+    const claimBtn = e.state === "OPEN" && state.status && !state.status.readonly
+      ? '<button class="btn" data-claim="' + e.memo + '" type="button">claim</button>' : "";
+    return '<div class="list-row">' +
+      '<span class="mono" style="max-width:220px;overflow:hidden;text-overflow:ellipsis">' + e.memo.slice(0, 22) + "…</span>" +
+      '<span>' + ethersFmt(e.amount) + " AGP · fee " + ethersFmt(e.fee) + "</span>" +
+      '<span>payer <span class="mono">' + e.payer.slice(0, 8) + "…</span></span>" +
+      '<span>' + stateTag + claimBtn + "</span>" +
+      "</div>";
+  }).join("");
+}
+
+async function refresh() {
+  try {
+    state.status = await api("/api/status");
+    state.stats = await api("/api/stats");
+    state.services = (await api("/api/services")).services;
+    state.escrows = (await api("/api/escrows")).escrows;
+    renderStatus();
+    renderStats();
+    renderServices();
+    renderEscrows();
+  } catch (e) {
+    $("status-box").innerHTML = '<span class="tag bad">后台 API 不可用</span> ' + e.message;
+  }
+}
+
+// ---- 事件绑定 ----
+document.querySelectorAll(".dash-nav a").forEach((a) =>
+  a.addEventListener("click", (e) => { e.preventDefault(); switchPanel(a.dataset.panel); }));
+
+$("refresh").addEventListener("click", refresh);
+
+$("svc-save").addEventListener("click", async function () {
+  try {
+    const r = await api("/api/services", {
+      method: "POST",
+      body: JSON.stringify({ id: $("svc-id").value, price: $("svc-price").value, endpoint: $("svc-endpoint").value }),
+    });
+    $("svc-result").innerHTML = '<span class="tag ok">已提交</span> <span class="mono">' + r.tx + "</span>";
+    refresh();
+  } catch (e) { $("svc-result").innerHTML = '<span class="tag bad">' + e.message + "</span>"; }
+});
+
+$("svc-close").addEventListener("click", async function () {
+  try {
+    const r = await api("/api/services/close", {
+      method: "POST",
+      body: JSON.stringify({ id: $("svc-id").value }),
+    });
+    $("svc-result").innerHTML = '<span class="tag ok">已下线</span> <span class="mono">' + r.tx + "</span>";
+    refresh();
+  } catch (e) { $("svc-result").innerHTML = '<span class="tag bad">' + e.message + "</span>"; }
+});
+
+document.addEventListener("click", async function (e) {
+  const btn = e.target.closest("[data-claim]");
+  if (!btn) return;
+  try {
+    const r = await api("/api/escrows/claim", {
+      method: "POST",
+      body: JSON.stringify({ memo: btn.dataset.claim }),
+    });
+    btn.disabled = true;
+    btn.textContent = "claimed";
+    refresh();
+  } catch (err) { alert("claim 失败: " + err.message); }
+});
+
+function bindSetting(action, inputId, btnId, okText) {
+  $(btnId).addEventListener("click", async function () {
+    try {
+      const r = await api("/api/settings", {
+        method: "POST",
+        body: JSON.stringify({ action, value: $(inputId).value }),
+      });
+      $("set-result").innerHTML = '<span class="tag ok">' + okText + '</span> <span class="mono">' + r.tx + "</span>";
+      refresh();
+    } catch (e) { $("set-result").innerHTML = '<span class="tag bad">' + e.message + "</span>"; }
+  });
+}
+bindSetting("fee", "set-fee", "set-fee-btn", "费率已更新");
+bindSetting("refundDelay", "set-delay", "set-delay-btn", "退款窗口已更新");
+bindSetting("treasury", "set-treasury", "set-treasury-btn", "财库已更新");
+bindSetting("arbiter", "set-arbiter", "set-arbiter-btn", "仲裁人已更新");
+
+refresh();
+</script>
+</body>
+</html>
